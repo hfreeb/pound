@@ -11,12 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <termios.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <time.h>
 
+#include "terminal.h"
 #include "append_buffer.h"
 
 /*** defines ***/
@@ -90,7 +90,6 @@ struct EdiorConfig {
     char statusMsg[80];
     time_t statusMsgTime;
     struct EditorSyntax *syntax;
-    struct termios origTermios;
 };
 
 struct EdiorConfig config;
@@ -126,34 +125,6 @@ void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
 
 /*** terminal ***/
-
-void die(const char *s) {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-
-    perror(s);
-    exit(1);
-}
-
-void disableRawMode() {
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &config.origTermios) == -1)
-        die("tcsetattr");
-}
-
-void enableRawMode() {
-    if (tcgetattr(STDIN_FILENO, &config.origTermios) == -1) die("tcgetattr");
-    atexit(disableRawMode);
-
-    struct termios raw = config.origTermios;
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    raw.c_oflag &= ~(OPOST);
-    raw.c_cflag |= (CS8);
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    raw.c_cc[VMIN] = 0;
-    raw.c_cc[VTIME] = 1;
-
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
-}
 
 int editorReadKey() {
     int nread;
@@ -1057,8 +1028,7 @@ int main(int argc, char *argv[]) {
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage(
-            "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     while (1) {
         editorRefreshScreen();
