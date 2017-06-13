@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.7)
-project(kilo)
+project(pound)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 
-set(SOURCE_FILES src/kilo.c src/append_buffer.h src/append_buffer.c src/terminal.c src/terminal.h)
-add_executable(kilo ${SOURCE_FILES})
+set(SOURCE_FILES src/pound.c src/append_buffer.h src/append_buffer.c src/terminal.c src/terminal.h src/row.c src/row.h)
+add_executable(pound ${SOURCE_FILES})

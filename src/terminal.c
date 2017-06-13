@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include "terminal.h"
@@ -9,9 +10,9 @@
 static struct termios origTerminal;
 
 /**
- * die - clears the terminal and kills the program
+ * Clears the terminal and kills the program
  *
- * @param s error m
+ * @param s error message
  */
 void die(const char *s) {
     write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -22,7 +23,7 @@ void die(const char *s) {
 }
 
 /**
- * disableRawMode - Returns to the original terminal config
+ * Returns to the original terminal config
  */
 static void restoreTerminal() {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &origTerminal) == -1) {
@@ -31,8 +32,6 @@ static void restoreTerminal() {
 }
 
 /**
- * enableRawMode - Changes the terminal mode from canonical to raw mode
- *
  * Changes the terminal mode from canonical mode, which only sends keyboard
  * input when the user presses Enter, into raw mode which sends keyboard input
  * on key press.
@@ -80,5 +79,69 @@ void enableRawMode() {
     //Update terminal config
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
         die("failed to update terminal config");
+    }
+}
+
+/**
+ * Writes the specified command into he terminal.
+ *
+ * @param s to write
+ * @return 0 if successful, -1 otherwise
+ */
+int terminalWrite(char *s, int len) {
+    ssize_t result = write(STDOUT_FILENO, s, (size_t) len);
+    return (result >= 0 && result == len) ? 0 : -1;
+}
+
+/**
+ * Sets the row and column values of the position of the cursor
+ * to the specified pointers.
+ *
+ * @param rows pointer to be set
+ * @param cols pointer to be set
+ * @return 0 if successful, -1 otherwise
+ */
+int getCursorPosition(int *rows, int *cols) {
+    char buf[32];
+    unsigned int i = 0;
+
+    if (terminalWrite(CURSOR_POSITION_CMD)) {
+        return -1;
+    }
+
+    while (i < sizeof(buf) - 1) {
+        if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+        if (buf[i] == 'R') break;
+        i++;
+    }
+    buf[i] = '\0';
+
+    if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+    if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+
+    return 0;
+}
+
+/**
+ * Sets the row and column values of the size of the window
+ * to the specified pointers.
+ *
+ * @param rows
+ * @param cols
+ * @return
+ */
+int getWindowSize(int *rows, int *cols) {
+    struct winsize ws;
+
+    //TIOCGWINSZ = Terminal Input Output Get WINdow SiZe
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        char cmdBuf[16];
+        int cmdLen = getCursorMoveCmd(cmdBuf, 999, 999);
+        if (terminalWrite(cmdBuf, cmdLen) == -1) return -1;
+        return getCursorPosition(rows, cols);
+    } else {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        return 0;
     }
 }
